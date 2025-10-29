@@ -1,116 +1,122 @@
 import { useEffect, useState } from "react";
 import { Text, View, Image, TextInput, ActivityIndicator, TouchableOpacity, ScrollView } from "react-native";
 
-interface Jugador {
-  nombre: string;
-  posicion: string;
-  club: string;
-  nacionalidad: string;
-  foto: string;
+// La interfaz se ha actualizado para coincidir con la nueva API
+interface Character {
+  id: number; // La nueva API proporciona un ID para cada personaje
+  name: string;
+  race: string;
+  ki: string;
+  image: string; // La nueva API usa 'image' en lugar de 'imageUrl'
 }
 
 const Index = () => {
-  const [jugador, setJugador] = useState<Jugador | null>(null);
-  const [terminoBusqueda, setTerminoBusqueda] = useState('Kaka');
-  const [cargando, setCargando] = useState(false);
+  const [characters, setCharacters] = useState<Character[]>([]);
+  const [searchTerm, setSearchTerm] = useState('Goku');
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const buscarJugador = async (nombre: string) => {
-    setCargando(true);
+  const searchCharacter = async (name: string) => {
+    setLoading(true);
     setError(null);
-    setJugador(null);
-    
     try {
-      const response = await fetch(`https://www.thesportsdb.com/api/v1/json/3/searchplayers.php?p=${encodeURIComponent(nombre)}`);
+      // Usamos la API de la documentación con un límite para obtener todos los personajes
+      const response = await fetch(`https://dragonball-api.com/api/characters?limit=100`);
       
       if (!response.ok) {
-        throw new Error('Jugador no encontrado');
+        throw new Error('Error al buscar personajes');
       }
       
       const data = await response.json();
       
-      if (data.player && data.player.length > 0) {
-        const playerData = data.player[0];
-        setJugador({
-          nombre: playerData.strPlayer,
-          posicion: playerData.strPosition,
-          club: playerData.strTeam,
-          nacionalidad: playerData.strNationality,
-          foto: playerData.strCutout || playerData.strThumb || 'https://via.placeholder.com/200',
-        });
+      // La respuesta de la API tiene los personajes en la propiedad 'items'
+      if (data.items && data.items.length > 0) {
+        const filteredCharacters = data.items.filter((character: Character) => 
+          character.name.toLowerCase().includes(name.toLowerCase())
+        );
+
+        if (filteredCharacters.length > 0) {
+          setCharacters(filteredCharacters);
+        } else {
+          setCharacters([]);
+          throw new Error(`No se encontraron personajes que coincidan con "${name}".`);
+        }
       } else {
-        throw new Error('Jugador no encontrado');
+        setCharacters([]);
+        throw new Error('No se encontraron personajes en la respuesta de la API.');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ocurrió un error');
+      setCharacters([]);
+      setError(err instanceof Error ? err.message : 'Ocurrió un error durante la búsqueda.');
     } finally {
-      setCargando(false);
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    buscarJugador('Kaka');
+    searchCharacter('Goku');
   }, []);
 
-  const handleBusqueda = () => {
-    if(terminoBusqueda.trim()) {
-      buscarJugador(terminoBusqueda);
+  const handleSearch = () => {
+    if(searchTerm.trim()) {
+      searchCharacter(searchTerm);
     }
   };
 
   return (
-    <View className="flex-1 bg-slate-900">
-      <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-        <View className="flex-1 justify-center items-center p-5 pt-20">
-          <Text className="text-4xl font-extrabold text-cyan-400 mb-4 text-center">Buscador de Jugadores</Text>
-          
-          <View className="w-full max-w-sm">
-            <TextInput
-              className="h-14 border-2 border-slate-600 rounded-xl w-full mt-5 px-4 bg-slate-800 text-white text-lg"
-              onChangeText={setTerminoBusqueda}
-              value={terminoBusqueda}
-              placeholder="Ej: Messi, Ronaldo"
-              placeholderTextColor="#9ca3af"
-              onSubmitEditing={handleBusqueda}
-            />
-            
-            <TouchableOpacity 
-              className="bg-cyan-500 active:bg-cyan-600 rounded-xl py-3 px-8 mt-4 shadow-lg w-full"
-              onPress={handleBusqueda} 
-            >
-              <Text className="text-slate-900 font-bold text-xl text-center">Buscar</Text>
-            </TouchableOpacity>
-          </View>
+    <ScrollView contentContainerStyle={{ flexGrow: 1, alignItems: 'center', backgroundColor: '#1e293b' }}>
+      <View className="w-full p-5 items-center">
+        
+        <Text className="text-5xl font-extrabold text-yellow-400 mt-12 mb-8 shadow-md">
+          Buscador de Dragon Ball
+        </Text>
 
-          {cargando && <ActivityIndicator size="large" color="#22d3ee" className="mt-8" />}
+        <View className="flex-row w-full max-w-md mb-8">
+          <TextInput
+            className="flex-1 bg-slate-800 border-2 border-slate-700 text-white rounded-l-lg p-4 text-lg focus:border-yellow-400"
+            placeholder="Buscar personaje..."
+            placeholderTextColor="#9ca3af"
+            value={searchTerm}
+            onChangeText={setSearchTerm}
+            returnKeyType="search"
+            onSubmitEditing={handleSearch}
+          />
+          <TouchableOpacity 
+            className="bg-yellow-400 p-4 rounded-r-lg justify-center items-center"
+            onPress={handleSearch}
+            disabled={loading}
+          >
+            <Text className="text-slate-900 font-bold text-lg">Buscar</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View className="w-full max-w-md items-center">
+          {loading && <ActivityIndicator size="large" color="#facc15" className="mt-8" />}
           {error && <Text className="text-red-400 mt-5 text-lg font-semibold">{error}</Text>}
           
-          {jugador && (
-            <View className="items-center mt-8 bg-slate-800/80 p-6 rounded-2xl shadow-2xl w-full max-w-sm">
-              <Text className="text-3xl font-bold text-white text-center">{jugador.nombre}</Text>
-              
-              <Image
-                source={{ uri: jugador.foto }}
-                className="w-48 h-48 mt-4 rounded-full border-4 border-cyan-400"
-                resizeMode="cover"
-              />
-
-              <View className="mt-5 self-start w-full">
-                <Text className="text-xl text-white my-1">
-                  <Text className="font-bold text-cyan-400">Posición:</Text> {jugador.posicion}
-                </Text>
-                <Text className="text-xl text-white my-1">
-                  <Text className="font-bold text-cyan-400">Club:</Text> {jugador.club}
-                </Text>
-                <Text className="text-xl text-white my-1">
-                  <Text className="font-bold text-cyan-400">Nacionalidad:</Text> {jugador.nacionalidad}
-                </Text>
-              </View>
+          {characters.length > 0 && (
+            <View className="w-full items-center">
+              {characters.map((character) => (
+                <View 
+                  key={character.id} // Usamos el id del personaje como clave
+                  className="items-center my-8 w-full max-w-sm"
+                >
+                  <Text className="text-3xl font-bold text-white text-center mb-4">{character.name}</Text>
+                  
+                  <Image
+                    source={{ uri: character.image }} // Usamos 'image' de la nueva API
+                    className="w-full h-96"
+                    resizeMode="contain"
+                  />
+                  <Text className="text-white text-lg mt-4">Raza: {character.race}</Text>
+                  <Text className="text-white text-lg">Ki: {character.ki}</Text>
+                </View>
+              ))}
             </View>
           )}
         </View>
-      </ScrollView>
-    </View>
+      </View>
+    </ScrollView>
   );
 };
 
