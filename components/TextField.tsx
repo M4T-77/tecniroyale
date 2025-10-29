@@ -1,14 +1,13 @@
 import { TextInput, TextInputProps } from 'react-native';
 
 interface TextFieldProps extends TextInputProps {
-  // Aquí puedes añadir props personalizadas si lo necesitas
 }
 
 const TextField = (props: TextFieldProps) => {
   return (
     <TextInput
-      className="flex-1 bg-slate-800 border-2 border-slate-700 text-white rounded-l-lg p-4 text-lg focus:border-yellow-400"
-      placeholderTextColor="#9ca3af"
+      className="flex-1 bg-white border-2 border-blue-500 text-gray-800 rounded-l-lg p-4 text-lg focus:border-blue-700 w-screen"
+      placeholderTextColor="#6b7280"
       {...props}
     />
   );

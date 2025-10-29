@@ -1,9 +1,40 @@
+import axios from 'axios';
 import { useEffect, useState } from "react";
-import { Text, View, Image, ActivityIndicator, TouchableOpacity, ScrollView } from "react-native";
-import TextField from '../components/TextField';
+import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import IconButton from '../components/IconButton';
+import ImageWithLoader from '../components/ImageWithLoader';
+import TextField from '../components/TextField';
 
-// Interfaz para las transformaciones
+const getRaceColor = (race: string): string => {
+    const raceColors: { [key: string]: string } = {
+        'saiyan': '#c5a355',
+        'human': '#6a9fcf',
+        'namekian': '#6aab75',
+        'frieza race': '#9b7bb6',
+        'android': '#95a5a6',
+        'majin': '#e58b8b',
+        'jiren race': '#c07065',
+        'god': '#6a9fcf',
+        'angel': '#b39bc8',
+        'evil': '#c07065',
+    };
+    return raceColors[race.toLowerCase()] || '#5f7385';
+};
+
+const isColorLight = (color: string): boolean => {
+    const hex = color.replace('#', '');
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+    const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+    return yiq >= 128;
+};
+
+const formatKi = (ki: string): string => {
+    if (!ki) return "0";
+    return ki.replace(/\B(?=(\d{3})+(?!\\d))/g, ",");
+};
+
 interface Transformation {
   id: number;
   name: string;
@@ -11,7 +42,6 @@ interface Transformation {
   ki: string;
 }
 
-// Interfaz del personaje actualizada para incluir transformaciones
 interface Character {
   id: number;
   name: string;
@@ -25,7 +55,6 @@ interface Character {
   transformations: Transformation[];
 }
 
-// Interfaz para manejar el estado de visualización del personaje
 interface DisplayCharacter {
   character: Character;
   currentTransformationIndex: number;
@@ -42,43 +71,32 @@ const Index = () => {
     setError(null);
     setCharacters([]);
     try {
-      const response = await fetch(`https://dragonball-api.com/api/characters?limit=100`);
+      const response = await axios.get(`https://dragonball-api.com/api/characters?limit=100`);
+      if (response.status !== 200) throw new Error('Error al buscar personajes');
       
-      if (!response.ok) {
-        throw new Error('Error al buscar personajes');
-      }
-      
-      const data = await response.json();
-      
-      if (data.items && data.items.length > 0) {
-        const filteredCharacters = data.items.filter((character: any) => 
-          character.name.toLowerCase().includes(name.toLowerCase())
+      const data = response.data;
+      if (!data.items || data.items.length === 0) throw new Error('No se encontraron personajes en la API.');
+
+      const filteredCharacters = data.items.filter((char: any) => 
+        char.name.toLowerCase().includes(name.toLowerCase())
+      );
+
+      if (filteredCharacters.length > 0) {
+        const detailedCharacters = await Promise.all(
+          filteredCharacters.map(char => 
+            axios.get(`https://dragonball-api.com/api/characters/${char.id}`).then(res => res.data)
+          )
         );
-
-        if (filteredCharacters.length > 0) {
-          const detailedCharacters = await Promise.all(
-            filteredCharacters.map(async (char: any) => {
-              const res = await fetch(`https://dragonball-api.com/api/characters/${char.id}`);
-              return res.json();
-            })
-          );
-
-          const displayChars: DisplayCharacter[] = detailedCharacters.map((char: Character) => ({
-              character: char,
-              currentTransformationIndex: -1 // -1 representa la forma base
-          }));
-          setCharacters(displayChars);
-        } else {
-          setCharacters([]);
-          throw new Error(`No se encontraron personajes que coincidan con "${name}".`);
-        }
+        const displayChars: DisplayCharacter[] = detailedCharacters.map(char => ({
+            character: char,
+            currentTransformationIndex: -1
+        }));
+        setCharacters(displayChars);
       } else {
-        setCharacters([]);
-        throw new Error('No se encontraron personajes en la respuesta de la API.');
+        throw new Error(`No se encontraron personajes que coincidan con "${name}".`);
       }
     } catch (err) {
-      setCharacters([]);
-      setError(err instanceof Error ? err.message : 'Ocurrió un error durante la búsqueda.');
+      setError(err instanceof Error ? err.message : 'Ocurrió un error inesperado.');
     } finally {
       setLoading(false);
     }
@@ -89,31 +107,29 @@ const Index = () => {
   }, []);
 
   const handleSearch = () => {
-    if(searchTerm.trim()) {
-      searchCharacter(searchTerm);
-    }
+    if(searchTerm.trim()) searchCharacter(searchTerm);
   };
 
-  const handleTransformationChange = (characterIndex: number, direction: number) => {
-    setCharacters(prev => {
-        const newChars = [...prev];
-        const current = newChars[characterIndex];
-        const newIndex = current.currentTransformationIndex + direction;
-
-        if (newIndex >= -1 && newIndex < current.character.transformations.length) {
-            newChars[characterIndex] = { ...current, currentTransformationIndex: newIndex };
+  const handleTransformationChange = (charIndex: number, direction: number) => {
+    setCharacters(prev => 
+      prev.map((displayChar, index) => {
+        if (index === charIndex) {
+          const newIndex = displayChar.currentTransformationIndex + direction;
+          if (newIndex >= -1 && newIndex < displayChar.character.transformations.length) {
+            return { ...displayChar, currentTransformationIndex: newIndex };
+          }
         }
-        
-        return newChars;
-    });
+        return displayChar;
+      })
+    );
   };
 
   return (
-    <ScrollView contentContainerStyle={{ flexGrow: 1, alignItems: 'center', backgroundColor: '#1e293b' }}>
+    <ScrollView contentContainerStyle={{ flexGrow: 1, alignItems: 'center' }} className="bg-white">
       <View className="w-full p-5 items-center">
         
-        <Text className="text-5xl font-extrabold text-yellow-400 mt-12 mb-8 shadow-md">
-          Buscador de Dragon Ball
+        <Text className="text-4xl font-bold text-gray-800 mt-16 mb-10 text-center">
+          Buscador de Personajes de Dragon Ball
         </Text>
 
         <View className="flex-row w-full max-w-md mb-8">
@@ -132,70 +148,69 @@ const Index = () => {
         </View>
 
         <View className="w-full max-w-md items-center">
-          {loading && <ActivityIndicator size="large" color="#facc15" className="mt-8" />}
-          {error && <Text className="text-red-400 mt-5 text-lg font-semibold">{error}</Text>}
+          {loading && <ActivityIndicator size="large" color="#3b82f6" className="mt-8" />}
+          {error && <Text className="text-red-500 mt-5 text-lg font-semibold">{error}</Text>}
           
-          {characters.length > 0 && (
-            <View className="w-full items-center">
-              {characters.map((displayChar, index) => {
-                const { character, currentTransformationIndex } = displayChar;
-                const transformation = currentTransformationIndex >= 0 ? character.transformations[currentTransformationIndex] : null;
+          {characters.map((displayChar, index) => {
+            const { character, currentTransformationIndex } = displayChar;
+            const transformation = currentTransformationIndex >= 0 ? character.transformations[currentTransformationIndex] : null;
 
-                const displayName = transformation ? transformation.name : character.name;
-                const displayImage = transformation ? transformation.image : character.image;
-                const displayKi = transformation ? transformation.ki : character.ki;
+            const displayName = transformation?.name || character.name;
+            const displayImage = transformation?.image || character.image;
+            const displayKi = transformation?.ki || character.ki;
 
-                return (
-                  <View 
-                    key={character.id}
-                    className="items-center my-8 w-full max-w-sm bg-slate-800/50 p-6 rounded-xl"
-                  >
-                    <Text className="text-3xl font-bold text-white text-center mb-4">{displayName}</Text>
-                    
-                    <Image
-                      source={{ uri: displayImage }}
-                      className="w-full h-96"
-                      resizeMode="contain"
-                    />
+            const raceColor = getRaceColor(character.race);
+            const textColorClass = isColorLight(raceColor) ? 'text-gray-800' : 'text-gray-100';
+            const boldTextColorClass = isColorLight(raceColor) ? 'text-black' : 'text-white';
 
-                    {character.transformations && character.transformations.length > 0 && (
-                        <View className="flex-row justify-between items-center w-full my-4">
-                            <TouchableOpacity 
-                                onPress={() => handleTransformationChange(index, -1)} 
-                                disabled={currentTransformationIndex < 0}
-                                className="p-2 bg-yellow-400 rounded-md"
-                                style={{ opacity: currentTransformationIndex < 0 ? 0.5 : 1 }}
-                            >
-                                <Text className="text-slate-900 font-bold">Anterior</Text>
-                            </TouchableOpacity>
+            return (
+              <View 
+                key={character.id}
+                className="items-center my-6 w-full max-w-sm p-6 rounded-2xl shadow-lg border border-gray-200"
+                style={{ backgroundColor: raceColor }}
+              >
+                <Text className={`text-3xl font-bold text-center mb-4 ${boldTextColorClass}`}>{displayName}</Text>
+                
+                <ImageWithLoader
+                  source={{ uri: displayImage }}
+                  className="w-full h-96"
+                  resizeMode="contain"
+                />
 
-                            <Text className="text-white font-bold text-lg">
-                                {transformation ? transformation.name : "Base"}
-                            </Text>
+                {character.transformations?.length > 0 && (
+                    <View className="flex-row justify-between items-center w-full my-4">
+                        <TouchableOpacity 
+                            onPress={() => handleTransformationChange(index, -1)} 
+                            disabled={currentTransformationIndex < 0}
+                            className="p-3 bg-black/25 rounded-lg border border-white/20 active:bg-black/40 disabled:opacity-50"
+                        >
+                            <Text className={`font-bold ${boldTextColorClass}`}>Anterior</Text>
+                        </TouchableOpacity>
 
-                            <TouchableOpacity 
-                                onPress={() => handleTransformationChange(index, 1)} 
-                                disabled={currentTransformationIndex >= character.transformations.length - 1}
-                                className="p-2 bg-yellow-400 rounded-md"
-                                style={{ opacity: currentTransformationIndex >= character.transformations.length - 1 ? 0.5 : 1 }}
-                            >
-                                <Text className="text-slate-900 font-bold">Siguiente</Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
-                    
-                    <View className="w-full mt-6">
-                      <Text className="text-white text-lg mb-2"><Text className="font-bold">Raza:</Text> {character.race}</Text>
-                      <Text className="text-white text-lg mb-2"><Text className="font-bold">Ki:</Text> {displayKi}</Text>
-                      <Text className="text-white text-lg mb-2"><Text className="font-bold">Ki Máximo:</Text> {character.maxKi}</Text>
-                      <Text className="text-white text-lg mb-2"><Text className="font-bold">Género:</Text> {character.gender}</Text>
-                      <Text className="text-white text-lg mb-4"><Text className="font-bold">Afiliación:</Text> {character.affiliation}</Text>
+                        <Text className={`font-bold text-lg ${boldTextColorClass}`}>
+                            {transformation ? transformation.name : "Base"}
+                        </Text>
+
+                        <TouchableOpacity 
+                            onPress={() => handleTransformationChange(index, 1)} 
+                            disabled={currentTransformationIndex >= character.transformations.length - 1}
+                            className="p-3 bg-black/25 rounded-lg border border-white/20 active:bg-black/40 disabled:opacity-50"
+                        >
+                            <Text className={`font-bold ${boldTextColorClass}`}>Siguiente</Text>
+                        </TouchableOpacity>
                     </View>
-                  </View>
-                )
-              })}
-            </View>
-          )}
+                )}
+                
+                <View className="w-full mt-4 bg-black/20 p-4 rounded-lg">
+                  <Text className={`${textColorClass} text-lg mb-2`}><Text className={`font-bold ${boldTextColorClass}`}>Raza:</Text> {character.race}</Text>
+                  <Text className={`${textColorClass} text-lg mb-2`}><Text className={`font-bold ${boldTextColorClass}`}>Ki:</Text> {formatKi(displayKi)}</Text>
+                  <Text className={`${textColorClass} text-lg mb-2`}><Text className={`font-bold ${boldTextColorClass}`}>Ki Máximo:</Text> {formatKi(character.maxKi)}</Text>
+                  <Text className={`${textColorClass} text-lg mb-2`}><Text className={`font-bold ${boldTextColorClass}`}>Género:</Text> {character.gender}</Text>
+                  <Text className={`${textColorClass} text-lg mb-4`}><Text className={`font-bold ${boldTextColorClass}`}>Afiliación:</Text> {character.affiliation}</Text>
+                </View>
+              </View>
+            )
+          })}
         </View>
       </View>
     </ScrollView>
@@ -203,3 +218,4 @@ const Index = () => {
 };
 
 export default Index;
+
