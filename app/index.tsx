@@ -1,13 +1,19 @@
 import { useEffect, useState } from "react";
-import { Text, View, Image, TextInput, ActivityIndicator, TouchableOpacity, ScrollView } from "react-native";
+import { ActivityIndicator, Image, ScrollView, Text, View } from "react-native";
+import IconButton from '../components/IconButton';
+import TextField from '../components/TextField';
 
-// La interfaz se ha actualizado para coincidir con la nueva API
+// La interfaz se ha ampliado para incluir todas las características del personaje
 interface Character {
-  id: number; // La nueva API proporciona un ID para cada personaje
+  id: number;
   name: string;
   race: string;
   ki: string;
-  image: string; // La nueva API usa 'image' en lugar de 'imageUrl'
+  maxKi: string;
+  gender: string;
+  description: string;
+  image: string;
+  affiliation: string;
 }
 
 const Index = () => {
@@ -20,7 +26,6 @@ const Index = () => {
     setLoading(true);
     setError(null);
     try {
-      // Usamos la API de la documentación con un límite para obtener todos los personajes
       const response = await fetch(`https://dragonball-api.com/api/characters?limit=100`);
       
       if (!response.ok) {
@@ -29,7 +34,6 @@ const Index = () => {
       
       const data = await response.json();
       
-      // La respuesta de la API tiene los personajes en la propiedad 'items'
       if (data.items && data.items.length > 0) {
         const filteredCharacters = data.items.filter((character: Character) => 
           character.name.toLowerCase().includes(name.toLowerCase())
@@ -72,22 +76,18 @@ const Index = () => {
         </Text>
 
         <View className="flex-row w-full max-w-md mb-8">
-          <TextInput
-            className="flex-1 bg-slate-800 border-2 border-slate-700 text-white rounded-l-lg p-4 text-lg focus:border-yellow-400"
+          <TextField
             placeholder="Buscar personaje..."
-            placeholderTextColor="#9ca3af"
             value={searchTerm}
             onChangeText={setSearchTerm}
             returnKeyType="search"
             onSubmitEditing={handleSearch}
           />
-          <TouchableOpacity 
-            className="bg-yellow-400 p-4 rounded-r-lg justify-center items-center"
+          <IconButton 
+            text="Buscar"
             onPress={handleSearch}
             disabled={loading}
-          >
-            <Text className="text-slate-900 font-bold text-lg">Buscar</Text>
-          </TouchableOpacity>
+          />
         </View>
 
         <View className="w-full max-w-md items-center">
@@ -98,18 +98,25 @@ const Index = () => {
             <View className="w-full items-center">
               {characters.map((character) => (
                 <View 
-                  key={character.id} // Usamos el id del personaje como clave
-                  className="items-center my-8 w-full max-w-sm"
+                  key={character.id}
+                  className="items-center my-8 w-full max-w-sm bg-slate-800/50 p-6 rounded-xl"
                 >
                   <Text className="text-3xl font-bold text-white text-center mb-4">{character.name}</Text>
                   
                   <Image
-                    source={{ uri: character.image }} // Usamos 'image' de la nueva API
+                    source={{ uri: character.image }}
                     className="w-full h-96"
                     resizeMode="contain"
                   />
-                  <Text className="text-white text-lg mt-4">Raza: {character.race}</Text>
-                  <Text className="text-white text-lg">Ki: {character.ki}</Text>
+                  
+                  {/* Contenedor para las estadísticas del personaje */}
+                  <View className="w-full mt-6">
+                    <Text className="text-white text-lg mb-2"><Text className="font-bold">Raza:</Text> {character.race}</Text>
+                    <Text className="text-white text-lg mb-2"><Text className="font-bold">Ki:</Text> {character.ki}</Text>
+                    <Text className="text-white text-lg mb-2"><Text className="font-bold">Ki Máximo:</Text> {character.maxKi}</Text>
+                    <Text className="text-white text-lg mb-2"><Text className="font-bold">Género:</Text> {character.gender}</Text>
+                    <Text className="text-white text-lg mb-4"><Text className="font-bold">Afiliación:</Text> {character.affiliation}</Text>
+                  </View>
                 </View>
               ))}
             </View>
