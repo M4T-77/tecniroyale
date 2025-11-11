@@ -1,29 +1,26 @@
 import React, { useState } from 'react';
-import { View, Image, ActivityIndicator, ImageProps as RNImageProps } from 'react-native';
+import { View, Image, ActivityIndicator, ImageProps as RNImageProps, StyleProp, ViewStyle } from 'react-native';
 
 interface ImageWithLoaderProps extends RNImageProps {
-    className?: string;
+    containerClassName?: string;
+    containerStyle?: StyleProp<ViewStyle>;
 }
 
-const ImageWithLoader: React.FC<ImageWithLoaderProps> = ({className, ...props}) => {
+const ImageWithLoader: React.FC<ImageWithLoaderProps> = ({ containerClassName, containerStyle, style, ...props }) => {
   const [loading, setLoading] = useState(false);
 
   return (
-    <View className="w-full h-96 justify-center items-center">
-      
+    <View style={containerStyle} className={`${containerClassName} justify-center items-center`}>
       <Image
         {...props}
         onLoadStart={() => setLoading(true)}
         onLoadEnd={() => setLoading(false)}
-        className={className}
-        style={[{opacity: loading ? 0 : 1}, props.style]}
+        style={[{ opacity: loading ? 0 : 1, width: '100%', height: '100%' }, style]}
       />
       {loading && (
-        <ActivityIndicator
-          size="large"
-          color="#facc15"
-          style={{ position: 'absolute' }}
-        />
+        <View className="absolute top-0 left-0 right-0 bottom-0 justify-center items-center">
+          <ActivityIndicator size="large" color="#facc15" />
+        </View>
       )}
     </View>
   );
