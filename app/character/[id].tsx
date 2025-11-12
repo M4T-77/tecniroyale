@@ -1,23 +1,13 @@
 import axios from 'axios';
 import { useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
 import { Link, useLocalSearchParams } from 'expo-router';
 import ImageWithLoader from '../../components/ImageWithLoader';
+import { GoogleGenAI } from "@google/genai";
+import * as Speech from 'expo-speech';
 
-const getRaceColor = (race: string): string => {
-    const raceColors: { [key: string]: string } = {
-        'saiyan': '#c5a355',
-        'human': '#6a9fcf',
-        'namekian': '#6aab75',
-        'frieza race': '#9b7bb6',
-        'android': '#95a5a6',
-        'majin': '#e58b8b',
-        'jiren race': '#c07065',
-        'god': '#6a9fcf',
-        'angel': '#b39bc8',
-        'evil': '#c07065',
-    };
-    return raceColors[race.toLowerCase()] || '#5f7385';
+const getRaceClass = (race: string): string => {
+    return race.toLowerCase().replace(' ', '-') || 'default-race';
 };
 
 const formatKi = (ki: string): string => {
@@ -51,6 +41,10 @@ const CharacterDetail = () => {
     const [currentTransformationIndex, setCurrentTransformationIndex] = useState(-1);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [aiDescription, setAiDescription] = useState("");
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [generationError, setGenerationError] = useState<string | null>(null);
+    const [isSpeaking, setIsSpeaking] = useState(false);
 
     const fetchCharacter = async () => {
         setLoading(true);
@@ -66,6 +60,65 @@ const CharacterDetail = () => {
         }
     };
 
+    const generateDescription = async () => {
+        if (!character) return;
+
+        const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+        if (!API_KEY) {
+            Alert.alert("Error", "No se encontró la API Key. Verifica tu archivo .env");
+            return;
+        }
+
+        setIsGenerating(true);
+        setGenerationError(null);
+
+        try {
+            const ai = new GoogleGenAI({ apiKey: API_KEY });
+            const prompt = `Genera una descripción para el personaje de Dragon Ball llamado ${character.name}. Ya tengo la siguiente información: Raza: ${character.race}, Ki: ${character.ki}, Género: ${character.gender}, Afiliación: ${character.affiliation}. Proporciona detalles sobre su historia, personalidad o habilidades. IMPORTANTE: Tu respuesta debe ser solo la descripción, sin saludos, sin encabezados y sin repetir la información que te di.`;
+
+            const res = await ai.models.generateContent({
+                model: "gemini-2.0-flash",
+                contents: `Responde siempre en español: ${prompt}`,
+            });
+
+            if (res.text != undefined) {
+                setAiDescription(res.text);
+            } else {
+                setAiDescription("No se pudo obtener la respuesta");
+            }
+        } catch (err) {
+            console.log(err);
+            setGenerationError("Error al consultar a Gemini. Verifica tu API key.");
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const speakDescription = async () => {
+        if (!aiDescription) return;
+
+        const speaking = await Speech.isSpeakingAsync();
+        if (speaking) {
+            Speech.stop();
+            setIsSpeaking(false);
+            return;
+        }
+
+        Speech.speak(aiDescription, {
+            language: 'es-ES',
+            onStart: () => setIsSpeaking(true),
+            onDone: () => setIsSpeaking(false),
+            onError: () => setIsSpeaking(false),
+        });
+    };
+
+    useEffect(() => {
+        return () => {
+            Speech.stop();
+        };
+    }, []);
+
+
     useEffect(() => {
         if (id) fetchCharacter();
     }, [id]);
@@ -78,7 +131,7 @@ const CharacterDetail = () => {
         }
     };
 
-    if (loading) return <View className="flex-1 justify-center items-center bg-sky-400"><ActivityIndicator size="large" color="#f59e0b" /></View>;
+    if (loading) return <View className="flex-1 justify-center items-center bg-sky-400"><ActivityIndicator size="large" className="text-amber-500" /></View>;
     if (error) return <View className="flex-1 justify-center items-center bg-sky-400"><Text className="text-red-700 bg-white/80 rounded-lg p-4 text-lg font-bold shadow-lg">{error}</Text></View>;
     if (!character) return null;
 
@@ -86,10 +139,10 @@ const CharacterDetail = () => {
     const displayName = transformation?.name || character.name;
     const displayImage = transformation?.image || character.image;
     const displayKi = transformation?.ki || character.ki;
-    const raceColor = getRaceColor(character.race);
+    const raceClass = getRaceClass(character.race);
 
     return (
-        <ScrollView contentContainerStyle={{ flexGrow: 1, alignItems: 'center' }} className="bg-sky-400">
+        <ScrollView contentContainerStyle={{ flexGrow: 1, alignItems: 'center' }} className={`bg-${raceClass}-400`}>
             <View className="w-full p-5 items-center">
                 <View className="w-full max-w-sm">
                     <Link href="/" asChild>
@@ -101,19 +154,13 @@ const CharacterDetail = () => {
 
                 <View className="my-8 w-full max-w-sm mt-24">
                     <View
-                        className="bg-white/80 backdrop-blur-md rounded-3xl shadow-2xl"
-                        style={{
-                            borderColor: raceColor,
-                            borderWidth: 4,
-                            shadowColor: raceColor,
-                        }}
-                    >
+                        className={`bg-white/80 backdrop-blur-md rounded-3xl shadow-2xl border-4 border-${raceClass} shadow-${raceClass}`}>
                         <View className="items-center p-6">
-                            <Text className={`text-4xl font-black text-center mb-4`} style={{ color: raceColor }}>
+                            <Text className={`text-4xl font-black text-center mb-4 text-${raceClass}`}>
                                 {displayName}
                             </Text>
 
-                            <View className="w-full h-96 rounded-2xl overflow-hidden border-2" style={{ borderColor: raceColor }}>
+                            <View className={`w-full h-96 rounded-2xl overflow-hidden border-2 border-${raceClass}`}>
                                 <ImageWithLoader
                                     source={{ uri: displayImage }}
                                     className="w-full h-full"
@@ -126,37 +173,61 @@ const CharacterDetail = () => {
                                     <TouchableOpacity
                                         onPress={() => handleTransformationChange(-1)}
                                         disabled={currentTransformationIndex < 0}
-                                        style={{ backgroundColor: raceColor }}
-                                        className="py-2 px-5 rounded-full border-2 border-white/50 active:opacity-80 disabled:opacity-50 shadow-lg"
-                                    >
+                                        className={`py-2 px-5 rounded-full border-2 border-white/50 active:opacity-80 disabled:opacity-50 shadow-lg bg-${raceClass}`}>
                                         <Text className="text-white font-bold text-lg">‹</Text>
                                     </TouchableOpacity>
 
-                                    <Text className="font-bold text-xl mx-2 text-center flex-1" style={{ color: raceColor }}>
+                                    <Text className={`font-bold text-xl mx-2 text-center flex-1 text-${raceClass}`}>
                                         {transformation ? transformation.name : "Base"}
                                     </Text>
 
                                     <TouchableOpacity
                                         onPress={() => handleTransformationChange(1)}
                                         disabled={currentTransformationIndex >= character.transformations.length - 1}
-                                        style={{ backgroundColor: raceColor }}
-                                        className="py-2 px-5 rounded-full border-2 border-white/50 active:opacity-80 disabled:opacity-50 shadow-lg"
-                                    >
+                                        className={`py-2 px-5 rounded-full border-2 border-white/50 active:opacity-80 disabled:opacity-50 shadow-lg bg-${raceClass}`}>
                                         <Text className="text-white font-bold text-lg">›</Text>
                                     </TouchableOpacity>
                                 </View>
                             )}
 
                             <View className="w-full mt-2 bg-black/15 p-4 rounded-xl">
-                                <Text className="text-gray-900 text-lg mb-2"><Text className="font-bold" style={{ color: raceColor }}>Raza:</Text> {character.race}</Text>
-                                <Text className="text-gray-900 text-lg mb-2"><Text className="font-bold" style={{ color: raceColor }}>Ki:</Text> {formatKi(displayKi)}</Text>
-                                <Text className="text-gray-900 text-lg mb-2"><Text className="font-bold" style={{ color: raceColor }}>Ki Máximo:</Text> {formatKi(character.maxKi)}</Text>
-                                <Text className="text-gray-900 text-lg mb-2"><Text className="font-bold" style={{ color: raceColor }}>Género:</Text> {character.gender}</Text>
-                                <Text className="text-gray-900 text-lg"><Text className="font-bold" style={{ color: raceColor }}>Afiliación:</Text> {character.affiliation}</Text>
+                                <Text className="text-gray-900 text-lg mb-2"><Text className={`font-bold text-${raceClass}`}>Raza:</Text> {character.race}</Text>
+                                <Text className="text-gray-900 text-lg mb-2"><Text className={`font-bold text-${raceClass}`}>Ki:</Text> {formatKi(displayKi)}</Text>
+                                <Text className="text-gray-900 text-lg mb-2"><Text className={`font-bold text-${raceClass}`}>Ki Máximo:</Text> {formatKi(character.maxKi)}</Text>
+                                <Text className="text-gray-900 text-lg mb-2"><Text className={`font-bold text-${raceClass}`}>Género:</Text> {character.gender}</Text>
+                                <Text className="text-gray-900 text-lg"><Text className={`font-bold text-${raceClass}`}>Afiliación:</Text> {character.affiliation}</Text>
 
                                 <View className="border-t border-black/20 my-3" />
 
-                                <Text className="text-gray-800 text-base italic">{character.description}</Text>
+                                <TouchableOpacity
+                                    onPress={generateDescription}
+                                    disabled={isGenerating}
+                                    className={`py-2 px-5 rounded-full self-center my-2 active:opacity-80 disabled:opacity-50 shadow-lg bg-${raceClass}`}>
+                                    <Text className="text-white font-bold text-lg">
+                                        {isGenerating ? "Generando..." : "Generar descripción con IA"}
+                                    </Text>
+                                </TouchableOpacity>
+
+                                {isGenerating && <ActivityIndicator size="small" className={`my-2 text-${raceClass}`} />}
+
+                                {generationError && (
+                                    <Text className="text-red-600 text-center my-2">{generationError}</Text>
+                                )}
+
+                                {aiDescription ? (
+                                     <View className="items-center w-full">
+                                         <Text className="text-gray-800 text-base italic mt-2 text-center">{aiDescription}</Text>
+                                         <TouchableOpacity
+                                             onPress={speakDescription}
+                                             className={`py-2 px-5 rounded-full self-center my-2 active:opacity-80 shadow-lg bg-${raceClass}`}>
+                                             <Text className="text-white font-bold text-lg">
+                                                 {isSpeaking ? "Detener" : "Leer descripción"}
+                                             </Text>
+                                         </TouchableOpacity>
+                                    </View>
+                                ) : (
+                                    <Text className="text-gray-800 text-base italic text-center">Haz click en el botón para generar una descripción con IA.</Text>
+                                )}
                             </View>
                         </View>
                     </View>

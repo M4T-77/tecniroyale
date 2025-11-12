@@ -4,20 +4,8 @@ import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from "rea
 import ImageWithLoader from '../components/ImageWithLoader';
 import { Link } from 'expo-router';
 
-const getRaceColor = (race: string): string => {
-    const raceColors: { [key: string]: string } = {
-        'saiyan': '#c5a355',
-        'human': '#6a9fcf',
-        'namekian': '#6aab75',
-        'frieza race': '#9b7bb6',
-        'android': '#95a5a6',
-        'majin': '#e58b8b',
-        'jiren race': '#c07065',
-        'god': '#6a9fcf',
-        'angel': '#b39bc8',
-        'evil': '#c07065',
-    };
-    return raceColors[race.toLowerCase()] || '#5f7385';
+const getRaceClass = (race: string): string => {
+    return race.toLowerCase().replace(' ', '-') || 'default-race';
 };
 
 interface Character {
@@ -38,7 +26,6 @@ const Index = () => {
     try {
       const response = await axios.get(`https://dragonball-api.com/api/characters?limit=100`);
       if (response.status !== 200) throw new Error('Error al buscar personajes');
-      
       const data = response.data;
       if (!data.items || data.items.length === 0) throw new Error('No se encontraron personajes en la API.');
 
@@ -57,33 +44,28 @@ const Index = () => {
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1 }} className="bg-sky-400">
       <View className="w-full p-2 items-center">
-        <Text className="text-5xl font-black text-yellow-400 mt-16 mb-5 text-center textShadow: 2px 2px 0 #c05621">
+        <Text className="text-5xl font-black text-yellow-400 mt-16 mb-5 text-center">
           Personajes de Dragon Ball
         </Text>
 
-        {loading && <ActivityIndicator size="large" color="#f59e0b" className="mt-8" />}
+        {loading && <ActivityIndicator size="large" className="mt-8 text-amber-500" />}
         {error && <Text className="text-red-700 bg-white/80 rounded-lg p-4 mt-5 text-lg font-bold shadow-lg">{error}</Text>}
 
         <View className="flex-row flex-wrap justify-center w-full">
           {characters.map((character) => {
-            const raceColor = getRaceColor(character.race);
+            const raceClass = getRaceClass(character.race);
             return (
               <View key={character.id} className="w-1/2 p-1">
                 <Link href={`/character/${character.id}`} asChild>
                   <TouchableOpacity 
-                    style={{
-                        borderColor: raceColor,
-                        borderWidth: 2,
-                        borderRadius: 8,
-                        backgroundColor: `${raceColor}40`
-                    }}
+                    className={`border-2 rounded-lg border-${raceClass} bg-${raceClass}/25`}
                   >
                     <ImageWithLoader
                       source={{ uri: character.image }}
                       containerClassName="w-full h-40"
                       resizeMode="contain"
                     />
-                    <Text style={{ color: 'white', textAlign: 'center', padding: 5, fontWeight: 'bold' }}>
+                    <Text className="text-white text-center p-1.5 font-bold">
                       {character.name}
                     </Text>
                   </TouchableOpacity>
