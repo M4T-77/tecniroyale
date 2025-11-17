@@ -1,4 +1,6 @@
-> Edited for use in IDX on 07/09/12
+
+> ![GIF_20251111_230600_090_1](https://github.com/user-attachments/assets/7600252f-d692-432b-9483-85c806db3511)
+Edited for use in IDX on 07/09/12
 
 # Welcome to your Expo app 👋
 
